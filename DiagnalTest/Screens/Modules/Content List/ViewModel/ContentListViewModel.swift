@@ -2,24 +2,25 @@
 //  ContentListViewModel.swift
 //  DiagnalTest
 //
-//  Created by Sweta Jaiswal on 16/02/24.
+//  Created by Sweta Jaiswal on 26/02/24.
 //
 
 import Foundation
+import UIKit
 
 class ContentListViewModel {
 
-    /// Variables
+    //MARK: - Variables
     var currentPage = 1
-    var didReceiveContents: (()->()) = {}
+    var didReceiveContents: (()->())?
+    var didReceiveError: (()->()) = {}
 
     private var contentListService: ContentListProtocol
+    private(set) var filteredContents: [Content] = []
 
-    var contents: [Content]? {
+    var contents: [Content] = [] {
         didSet {
-            if let _ = contents {
-                self.didReceiveContents()
-            }
+            self.didReceiveContents?()
         }
     }
 
@@ -27,6 +28,7 @@ class ContentListViewModel {
     /// Init
     init(contentListService: ContentListProtocol = ContentListService()) {
         self.contentListService = contentListService
+        self.fetchContentList()
     }
 
 
@@ -34,34 +36,55 @@ class ContentListViewModel {
 
     func fetchContentList() {
         self.contentListService.readLocalJsonFile("content_list_page_\(self.currentPage)") { response in
+            
             switch response {
             case .success(let contentList):
-                if self.contents != nil {
-                    self.contents?.append(contentsOf: contentList.page.contentItems.content)
+                if (self.contents.count) > 0 {
+                    self.contents.append(contentsOf: contentList.page.contentItems.content)
                 } else {
                     self.contents = contentList.page.contentItems.content
                 }
-
+                
             case .failure(let error):
                 print("Error in fetching content list: \(error)")
+                self.didReceiveError()
             }
         }
     }
 
 
     //MARK: - Get content list count
-
+    
     func getContentListCount() -> Int {
-        guard let contents = contents else { return 0 }
         return contents.count
     }
+}
 
 
-    //MARK: - Get content item
+//MARK: - Search functions
 
-    func getContent(_ indexPath: IndexPath) -> Content? {
-        guard let contents = contents else { return nil }
-        return contents[indexPath.row]
+extension ContentListViewModel {
+    
+    public func inSearchMode(_ searchBar: UISearchBar) -> Bool {
+        let isActive = searchBar.isFirstResponder
+        let searchText = searchBar.text ?? ""
+        return isActive && !searchText.isEmpty
     }
-
+    
+    public func updateSearchList(searchBarText: String?) {
+        self.filteredContents = contents
+        
+        if let searchText = searchBarText?.lowercased() {
+            guard !searchText.isEmpty else {
+                self.didReceiveContents?()
+                return
+            }
+            
+            self.filteredContents = self.filteredContents.filter {
+                $0.name.lowercased().contains(searchText)
+            }
+        }
+    
+        self.didReceiveContents?()
+    }
 }

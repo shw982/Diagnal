@@ -2,7 +2,7 @@
 //  ContentListCell.swift
 //  DiagnalTest
 //
-//  Created by Sweta Jaiswal on 16/02/24.
+//  Created by Sweta Jaiswal on 26/02/24.
 //
 
 import UIKit

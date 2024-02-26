@@ -2,13 +2,13 @@
 //  Icons.swift
 //  DiagnalTest
 //
-//  Created by Roster Buster on 18/02/24.
+//  Created by Roster Buster on 26/02/24.
 //
 
 import Foundation
 import UIKit
 
-class Icons: NSObject {
+struct Icons {
 
     static let search = UIImage(named: "search")
     static let navigationBar = UIImage(named: "nav_bar")

@@ -2,7 +2,7 @@
 //  Fonts.swift
 //  DiagnalTest
 //
-//  Created by Roster Buster on 18/02/24.
+//  Created by Roster Buster on 26/02/24.
 //
 
 import Foundation
@@ -11,9 +11,8 @@ import UIKit
 struct Fonts {
 
     enum Name: String {
-        case openSans = "OpenSans"
-        case openSansSemibold = "OpenSans-Semibold"
         case helveticaLight = "Helvetica-Light"
+        case zapfino = "Zapfino"
     }
 
     static func font(_ name: Name, size: CGFloat) -> UIFont {

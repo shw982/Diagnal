@@ -2,30 +2,83 @@
 //  ContentListViewController.swift
 //  DiagnalTest
 //
-//  Created by Sweta Jaiswal on 16/02/24.
+//  Created by Sweta Jaiswal on 26/02/24.
 //  
 
 import UIKit
 
 class ContentListViewController: UIViewController {
 
-    /// IBOutlets
+    //MARK: - IBOutlets
+    
     @IBOutlet weak var collectionView: UICollectionView!
-
-    /// Variables
+    
+    //MARK: - Variables
+    
     private var viewModel: ContentListViewModel!
     private var totalPage = 3
+    private var searchBar = UISearchBar()
     
-
-    //MARK: - Life Cycle methods
-
+    static var identifier: String {
+        return String(describing: self)
+    }
+    
+    
+    //MARK: - Lifecycle
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
         viewModel = ContentListViewModel()
-        
         initialUISetup()
         loadData()
+    }
+}
+
+
+//MARK: - UICollectionView DataSource
+
+extension ContentListViewController: UICollectionViewDataSource {
+
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        let inSearchMode = viewModel.inSearchMode(searchBar)
+        return inSearchMode ? viewModel.filteredContents.count : viewModel.contents.count
+    }
+
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: ContentListCell.identifier, for: indexPath) as? ContentListCell else {
+            fatalError("Unable to dequeue ContentListCell")
+        }
+        
+        let inSearchMode = viewModel.inSearchMode(searchBar)
+        let content = inSearchMode ? viewModel.filteredContents[indexPath.row] : viewModel.contents[indexPath.row]
+        cell.content = content
+        return cell
+    }
+
+    func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+        if viewModel.currentPage <= totalPage && indexPath.row == viewModel.getContentListCount() - 3 {
+            viewModel.currentPage += 1
+            viewModel.fetchContentList()
+        }
+    }
+}
+
+
+//MARK: - Search bar delegates
+
+extension ContentListViewController: UISearchBarDelegate {
+    
+    func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
+        hideSearchBar()
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        viewModel.updateSearchList(searchBarText: searchText)
+    }
+    
+    func searchBarTextDidEndEditing(_ searchBar: UISearchBar) {
+        hideSearchBar()
     }
 }
 
@@ -35,11 +88,18 @@ class ContentListViewController: UIViewController {
 extension ContentListViewController {
 
     private func loadData() {
-        viewModel.fetchContentList()
-
         viewModel.didReceiveContents = {
             DispatchQueue.main.async {
                 self.collectionView.reloadData()
+            }
+        }
+        
+        viewModel.didReceiveError = {
+            DispatchQueue.main.async {
+                let alert = UIAlertController(title: Strings.error, message: Strings.noDataFound, preferredStyle: .alert)
+                let ok = UIAlertAction(title: Strings.ok, style: .default)
+                alert.addAction(ok)
+                self.present(alert, animated: true)
             }
         }
     }
@@ -47,6 +107,7 @@ extension ContentListViewController {
     private func initialUISetup() {
         setupUI()
         setupNavigationBar()
+        setupSearchBar()
         setupCollectionView()
     }
 
@@ -57,14 +118,17 @@ extension ContentListViewController {
     private func setupNavigationBar() {
         self.navigationController?.navigationBar.setBackgroundImage(Icons.navigationBar, for: .default)
         self.navigationController?.navigationBar.isTranslucent = false
-       
+        
         /// Search bar button
         let searchBtn = UIButton(type: .custom)
         searchBtn.setImage(Icons.search, for: .normal)
-        searchBtn.addTarget(self, action: #selector(searchTapped), for: .touchUpInside)
+        searchBtn.addTarget(self, action: #selector(showSearchBar), for: .touchUpInside)
         self.navigationItem.rightBarButtonItem = UIBarButtonItem(customView: searchBtn)
-
-        /// Left bar button items
+        
+        setupRightBarItems()
+    }
+    
+    private func setupRightBarItems() {
         /// Back Button
         let backBtn = UIButton(type: .custom)
         backBtn.setImage(Icons.back, for: .normal)
@@ -83,59 +147,56 @@ extension ContentListViewController {
     }
 
     private func setupCollectionView() {
-        collectionView.register(UINib(nibName: ContentListCell.identifier, bundle: nil),
-                                forCellWithReuseIdentifier: ContentListCell.identifier)
+        collectionView.register(UINib(nibName: ContentListCell.identifier, bundle: nil), forCellWithReuseIdentifier: ContentListCell.identifier)
         collectionView.backgroundColor = UIColor.black
         collectionView.showsVerticalScrollIndicator = false
     }
 
-    @objc func searchTapped(_ sender: UIButton) {
-        print("Search button tapped!")
+    private func setupSearchBar() {
+        searchBar.delegate = self
+        searchBar.placeholder = Strings.search
+        searchBar.text = nil
+        searchBar.barStyle = .black
+        searchBar.searchBarStyle = .minimal
+        searchBar.showsCancelButton = true
+        
+        self.definesPresentationContext = false
+        self.navigationItem.hidesSearchBarWhenScrolling = false
+    }
+    
+    @objc func showSearchBar(_ sender: UIButton) {
+        /// Hide navigation bar back button
+        self.navigationItem.setHidesBackButton(true, animated: true)
+        
+        self.navigationItem.titleView = searchBar
+        searchBar.alpha = 0
+        searchBar.text = nil
+        self.navigationItem.setLeftBarButtonItems(nil, animated: true)
+        self.navigationItem.setRightBarButtonItems(nil, animated: true)
+       
+        UIView.animate(withDuration: 0.5, animations: {
+            self.searchBar.alpha = 1
+        }, completion: { finished in
+            self.searchBar.becomeFirstResponder()
+        })
     }
 
     @objc func backButtonTapped(_ sender: UIButton) {
-        print("Back button tapped")
+        self.navigationController?.popViewController(animated: true)
+    }
+    
+    /// Hide search bar
+    private func hideSearchBar() {
+        /// Show navigation bar back button
+        self.navigationItem.setHidesBackButton(false, animated: true)
+        
+        setupNavigationBar()
+        self.navigationController?.view.setNeedsLayout()
+        self.navigationController?.view.layoutIfNeeded()
+     
+        searchBar.resignFirstResponder()
+        searchBar.alpha = 0
+        viewModel.updateSearchList(searchBarText: searchBar.text)
     }
 }
 
-
-
-//MARK: - UICollectionView DataSource
-
-extension ContentListViewController: UICollectionViewDataSource {
-
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return viewModel.getContentListCount()
-    }
-
-    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: ContentListCell.identifier, for: indexPath) as? ContentListCell else {
-            fatalError("Unable to dequeue ContentListCell")
-        }
-        cell.content = viewModel.getContent(indexPath)
-        return cell
-    }
-
-    func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-        if viewModel.currentPage <= totalPage && indexPath.row == viewModel.getContentListCount() - 3 {
-            viewModel.currentPage += 1
-            viewModel.fetchContentList()
-        }
-    }
-}
-
-
-
-//MARK: - UICollectionView Flow Layout
-
-extension ContentListViewController: UICollectionViewDelegateFlowLayout {
-
-    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
-        let width = collectionView.frame.size.width - 20
-        return CGSize(width: Double(width / 3), height: 280.0)
-    }
-
-    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, minimumLineSpacingForSectionAt section: Int) -> CGFloat {
-        return 30.0
-    }
-}
